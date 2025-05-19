@@ -8,15 +8,12 @@ class CFG:
         self.start_symbol = None
 
     def validate_variable(self, var):
-        """Check if a variable is a single uppercase letter."""
         return bool(re.match(r'^[A-Z]$', var))
 
     def validate_terminal(self, term):
-        """Check if a terminal is a single lowercase letter or digit."""
         return bool(re.match(r'^[a-z0-9]$', term))
 
     def validate_production(self, head, body):
-        """Validate a production rule."""
         if not self.validate_variable(head):
             return False
         for symbol in body:
@@ -25,7 +22,6 @@ class CFG:
         return True
 
     def add_variable(self, var):
-        """Add a variable if valid."""
         if self.validate_variable(var):
             self.variables.add(var)
             if var not in self.productions:
@@ -34,14 +30,12 @@ class CFG:
         return False
 
     def add_terminal(self, term):
-        """Add a terminal if valid."""
         if self.validate_terminal(term):
             self.terminals.add(term)
             return True
         return False
 
     def add_production(self, head, body):
-        """Add a production rule if valid."""
         if self.validate_production(head, body):
             if head not in self.productions:
                 self.productions[head] = []
@@ -50,14 +44,12 @@ class CFG:
         return False
 
     def set_start_symbol(self, symbol):
-        """Set the start symbol if valid and exists in variables."""
         if self.validate_variable(symbol) and symbol in self.variables:
             self.start_symbol = symbol
             return True
         return False
 
     def load_from_file(self, filename):
-        """Load CFG from a text file."""
         try:
             with open(filename, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
@@ -115,7 +107,6 @@ class CFG:
             return False
 
     def load_from_console(self):
-        """Load CFG from console input."""
         print("Enter variables (one per line, uppercase letters, empty line to end):")
         while True:
             var = input().strip()
@@ -163,7 +154,6 @@ class CFG:
         return True
 
     def display(self):
-        """Display the loaded CFG."""
         print("Variables:", self.variables)
         print("Terminals:", self.terminals)
         print("Productions:")
@@ -171,41 +161,81 @@ class CFG:
             for body in bodies:
                 print(f"{head} -> {' '.join(body) if body != ['epsilon'] else 'epsilon'}")
         print("Start Symbol:", self.start_symbol)
-    
+
     def parse_string(self, input_string):
-        """
-        Parse the input string and determine if it is accepted by the grammar.
-        Uses a recursive approach to simulate derivations.
-        """
         def derive(symbols, remaining_input):
-            """
-            Recursively derive the input string from the given symbols.
-            :param symbols: List of symbols to derive (current state of derivation).
-            :param remaining_input: Remaining part of the input string to match.
-            :return: True if derivation is successful, False otherwise.
-            """
             if not symbols and not remaining_input:
-                # Successfully derived the input string
                 return True
             if not symbols or (not remaining_input and symbols != ['epsilon']):
-                # Derivation failed
                 return False
-
-            # Process the first symbol in the current derivation
             first, *rest = symbols
-
             if first in self.terminals:
-                # If the first symbol is a terminal, match it with the input
                 if remaining_input and first == remaining_input[0]:
                     return derive(rest, remaining_input[1:])
                 else:
                     return False
             elif first in self.variables:
-                # If the first symbol is a variable, expand it using productions
                 for production in self.productions.get(first, []):
                     if derive(production + rest, remaining_input):
-                        return True  # Successful derivation
-                return False  # No valid derivation found
+                        return True
+                return False
+        return derive([self.start_symbol], list(input_string))
+
+    def get_derivation_steps(self, input_string, strategy='left'):
+        """
+        Generate and print the leftmost or rightmost derivation steps.
+        Returns a list of steps or None if the string is not derivable.
+        """
+        steps = []
+
+        def derive(symbols, remaining_input, derivation_path):
+            if not symbols and not remaining_input:
+                steps.append(' '.join(derivation_path))
+                return True
+            if not symbols or (not remaining_input and symbols != ['epsilon']):
+                return False
+
+            if strategy == 'left':
+                for i, sym in enumerate(symbols):
+                    if sym in self.variables:
+                        for prod in self.productions[sym]:
+                            new_symbols = symbols[:i] + (prod if prod != ['epsilon'] else []) + symbols[i+1:]
+                            derivation_path.append(' '.join(new_symbols))
+                            if derive(new_symbols, remaining_input, derivation_path):
+                                return True
+                            derivation_path.pop()
+                        return False
+                if ''.join(symbols) == input_string:
+                    steps.append(' '.join(symbols))
+                    return True
+                return False
+
+            elif strategy == 'right':
+                for i in reversed(range(len(symbols))):
+                    sym = symbols[i]
+                    if sym in self.variables:
+                        for prod in self.productions[sym]:
+                            new_symbols = symbols[:i] + (prod if prod != ['epsilon'] else []) + symbols[i+1:]
+                            derivation_path.append(' '.join(new_symbols))
+                            if derive(new_symbols, remaining_input, derivation_path):
+                                return True
+                            derivation_path.pop()
+                        return False
+                if ''.join(symbols) == input_string:
+                    steps.append(' '.join(symbols))
+                    return True
+                return False
+
+        initial = [self.start_symbol]
+        steps.append(' '.join(initial))
+        if derive(initial, list(input_string), steps):
+            print(f"\n{strategy.capitalize()}most derivation of '{input_string}':")
+            for step in steps:
+                print("=>", step)
+            return steps
+        else:
+            print(f"\nNo {strategy}most derivation found for '{input_string}'.")
+            return None
 
 def main():
     cfg = CFG()
@@ -216,26 +246,19 @@ def main():
         print("""
 Expected file format (e.g., grammar.txt):
 VARIABLES
-[One uppercase letter per line, e.g.]
 S
 A
 B
 TERMINALS
-[One lowercase letter or digit per line, e.g.]
 a
 b
 PRODUCTIONS
-[One rule per line, format: X -> Y Z | epsilon, e.g.]
 S -> A B
 A -> a A | epsilon
 B -> b B | epsilon
 START
-[Single uppercase letter, e.g.]
 S
-- Use spaces between symbols in productions.
-- No extra spaces or blank lines within sections.
-- Save as UTF-8 text file.
-        """)
+""")
         print("Enter filename (e.g., grammar.txt):")
         filename = input().strip()
         success = cfg.load_from_file(filename)
@@ -246,10 +269,19 @@ S
         return
 
     if success:
-        print("Grammar loaded successfully!")
+        print("\nGrammar loaded successfully!")
         cfg.display()
+
+        # Test derivation
+        print("\nEnter a string to derive:")
+        test_str = input().strip()
+        print("\nChoose derivation type: 1) Leftmost 2) Rightmost")
+        strat_choice = input().strip()
+        strategy = "left" if strat_choice == "1" else "right"
+        cfg.get_derivation_steps(test_str, strategy=strategy)
+
     else:
-        print("Failed to load grammar")
+        print("Failed to load grammar.")
 
 if __name__ == "__main__":
     main()
