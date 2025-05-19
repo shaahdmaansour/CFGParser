@@ -171,6 +171,41 @@ class CFG:
             for body in bodies:
                 print(f"{head} -> {' '.join(body) if body != ['epsilon'] else 'epsilon'}")
         print("Start Symbol:", self.start_symbol)
+    
+    def parse_string(self, input_string):
+        """
+        Parse the input string and determine if it is accepted by the grammar.
+        Uses a recursive approach to simulate derivations.
+        """
+        def derive(symbols, remaining_input):
+            """
+            Recursively derive the input string from the given symbols.
+            :param symbols: List of symbols to derive (current state of derivation).
+            :param remaining_input: Remaining part of the input string to match.
+            :return: True if derivation is successful, False otherwise.
+            """
+            if not symbols and not remaining_input:
+                # Successfully derived the input string
+                return True
+            if not symbols or (not remaining_input and symbols != ['epsilon']):
+                # Derivation failed
+                return False
+
+            # Process the first symbol in the current derivation
+            first, *rest = symbols
+
+            if first in self.terminals:
+                # If the first symbol is a terminal, match it with the input
+                if remaining_input and first == remaining_input[0]:
+                    return derive(rest, remaining_input[1:])
+                else:
+                    return False
+            elif first in self.variables:
+                # If the first symbol is a variable, expand it using productions
+                for production in self.productions.get(first, []):
+                    if derive(production + rest, remaining_input):
+                        return True  # Successful derivation
+                return False  # No valid derivation found
 
 def main():
     cfg = CFG()
