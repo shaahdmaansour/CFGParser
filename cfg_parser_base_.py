@@ -271,6 +271,7 @@ S
     if success:
         print("\nGrammar loaded successfully!")
         cfg.display()
+        print("\nProductions:", cfg.productions)
 
         # Test derivation
         print("\nEnter a string to derive:")
