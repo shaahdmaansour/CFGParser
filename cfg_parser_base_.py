@@ -1,4 +1,5 @@
 import re
+import graphviz
 
 class CFG:
     def __init__(self):
@@ -6,6 +7,7 @@ class CFG:
         self.terminals = set()
         self.productions = {}
         self.start_symbol = None
+        self.parse_tree_edges = [] # To store edges for Graphviz
 
     def validate_variable(self, var):
         return bool(re.match(r'^[A-Z]$', var))
@@ -162,74 +164,64 @@ class CFG:
                 print(f"{head} -> {' '.join(body) if body != ['epsilon'] else 'epsilon'}")
         print("Start Symbol:", self.start_symbol)
 
-    def parse_string(self, input_string):
-        def derive(symbols, remaining_input):
-            if not symbols and not remaining_input:
-                return True
-            if not symbols or (not remaining_input and symbols != ['epsilon']):
-                return False
-            first, *rest = symbols
-            if first in self.terminals:
-                if remaining_input and first == remaining_input[0]:
-                    return derive(rest, remaining_input[1:])
-                else:
-                    return False
-            elif first in self.variables:
-                for production in self.productions.get(first, []):
-                    if derive(production + rest, remaining_input):
-                        return True
-                return False
-        return derive([self.start_symbol], list(input_string))
-
-def get_derivation_steps(self, input_string, strategy='left'):
+    def get_derivation_steps(self, input_string, strategy='left'):
         """
-        Generate and print the leftmost or rightmost derivation steps with cycle detection.
+        Generate and print the leftmost or rightmost derivation steps and record parse tree edges.
         Returns a list of steps or None if the string is not derivable.
         """
         steps = []
-        visited_states = set()  # Keep track of (current_symbols, input_index)
+        visited_states = set()
+        self.parse_tree_edges = [] # Reset edges for a new parse
 
-        def derive(symbols, remaining_input, derivation_path):
-            current_state = (" ".join(symbols), len(input_string) - len(remaining_input))
+        def derive(current_symbols, remaining_input, derivation_path, parent_node=None):
+            current_state = (" ".join(current_symbols), len(input_string) - len(remaining_input))
             if current_state in visited_states:
-                return False  # Avoid infinite loops
+                return False
 
             visited_states.add(current_state)
 
-            if not symbols and not remaining_input:
+            if not current_symbols and not remaining_input:
                 steps.append(' '.join(derivation_path))
                 return True
-            if not symbols or (not remaining_input and symbols != ['epsilon']):
+            if not current_symbols or (not remaining_input and current_symbols != ['epsilon']):
                 return False
 
             if strategy == 'left':
-                for i, sym in enumerate(symbols):
+                for i, sym in enumerate(current_symbols):
                     if sym in self.variables:
                         for prod in self.productions[sym]:
-                            new_symbols = symbols[:i] + (prod if prod != ['epsilon'] else []) + symbols[i+1:]
+                            new_symbols = current_symbols[:i] + (prod if prod != ['epsilon'] else []) + current_symbols[i+1:]
                             derivation_path.append(' '.join(new_symbols))
-                            if derive(new_symbols, remaining_input, derivation_path):
+                            # Record parse tree edge
+                            if parent_node:
+                                for child in prod:
+                                    self.parse_tree_edges.append((parent_node, child))
+                            if derive(new_symbols, remaining_input, derivation_path, sym):
                                 return True
                             derivation_path.pop()
-                        return False  # If a variable is found, try all its productions before backtracking
-                if "".join(symbols) == input_string:
-                    steps.append(" ".join(symbols))
+                        return False
+                if "".join(current_symbols) == input_string:
+                    steps.append(" ".join(current_symbols))
                     return True
                 return False
 
             elif strategy == 'right':
-                for i in reversed(range(len(symbols))):
-                    sym = symbols[i]
+                for i in reversed(range(len(current_symbols))):
+                    sym = current_symbols[i]
                     if sym in self.variables:
                         for prod in self.productions[sym]:
-                            new_symbols = symbols[:i] + (prod if prod != ['epsilon'] else []) + symbols[i+1:]
+                            new_symbols = current_symbols[:i] + (prod if prod != ['epsilon'] else []) + current_symbols[i+1:]
                             derivation_path.append(' '.join(new_symbols))
-                            if derive(new_symbols, remaining_input, derivation_path):
+                            # Record parse tree edge
+                            if parent_node:
+                                for child in prod:
+                                    self.parse_tree_edges.append((parent_node, child))
+                            if derive(new_symbols, remaining_input, derivation_path, sym):
                                 return True
                             derivation_path.pop()
-                        return False # If a variable is found, try all its productions before backtracking
-                if "".join(symbols) == input_string:
-                    steps.append(" ".join(symbols))
+                        return False
+                if "".join(current_symbols) == input_string:
+                    steps.append(" ".join(current_symbols))
                     return True
                 return False
 
@@ -237,7 +229,7 @@ def get_derivation_steps(self, input_string, strategy='left'):
 
         initial = [self.start_symbol]
         steps.append(' '.join(initial))
-        if derive(initial, list(input_string), steps):
+        if derive(initial, list(input_string), steps, self.start_symbol):
             print(f"\n{strategy.capitalize()}most derivation of '{input_string}':")
             for step in steps:
                 print("=>", step)
@@ -245,6 +237,34 @@ def get_derivation_steps(self, input_string, strategy='left'):
         else:
             print(f"\nNo {strategy}most derivation found for '{input_string}'.")
             return None
+
+    def generate_parse_tree(self, output_filename="parse_tree"):
+        """Generates a parse tree visualization using Graphviz."""
+        if not self.parse_tree_edges:
+            print("No parse tree to generate (no successful derivation recorded).")
+            return
+
+        dot = graphviz.Digraph(comment='Parse Tree', format='png')
+        node_id = 0
+        node_map = {}
+
+        def get_node_id(symbol):
+            nonlocal node_id
+            if symbol not in node_map:
+                node_map[symbol] = str(node_id)
+                node_id += 1
+                dot.node(node_map[symbol], symbol)
+            return node_map[symbol]
+
+        start_symbol_id = get_node_id(self.start_symbol)
+
+        for parent, child in self.parse_tree_edges:
+            parent_id = get_node_id(parent)
+            child_id = get_node_id(child)
+            dot.edge(parent_id, child_id)
+
+        dot.render(output_filename, view=True)
+        print(f"\nParse tree saved to {output_filename}.png and displayed.")
 
 def main():
     cfg = CFG()
@@ -280,15 +300,15 @@ S
     if success:
         print("\nGrammar loaded successfully!")
         cfg.display()
-        print("\nProductions:", cfg.productions)
 
-        # Test derivation
+        # Test derivation and generate parse tree
         print("\nEnter a string to derive:")
         test_str = input().strip()
         print("\nChoose derivation type: 1) Leftmost 2) Rightmost")
         strat_choice = input().strip()
         strategy = "left" if strat_choice == "1" else "right"
-        cfg.get_derivation_steps(test_str, strategy=strategy)
+        if cfg.get_derivation_steps(test_str, strategy=strategy):
+            cfg.generate_parse_tree()
 
     else:
         print("Failed to load grammar.")
