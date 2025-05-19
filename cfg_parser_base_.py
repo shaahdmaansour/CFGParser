@@ -181,14 +181,21 @@ class CFG:
                 return False
         return derive([self.start_symbol], list(input_string))
 
-    def get_derivation_steps(self, input_string, strategy='left'):
+def get_derivation_steps(self, input_string, strategy='left'):
         """
-        Generate and print the leftmost or rightmost derivation steps.
+        Generate and print the leftmost or rightmost derivation steps with cycle detection.
         Returns a list of steps or None if the string is not derivable.
         """
         steps = []
+        visited_states = set()  # Keep track of (current_symbols, input_index)
 
         def derive(symbols, remaining_input, derivation_path):
+            current_state = (" ".join(symbols), len(input_string) - len(remaining_input))
+            if current_state in visited_states:
+                return False  # Avoid infinite loops
+
+            visited_states.add(current_state)
+
             if not symbols and not remaining_input:
                 steps.append(' '.join(derivation_path))
                 return True
@@ -204,9 +211,9 @@ class CFG:
                             if derive(new_symbols, remaining_input, derivation_path):
                                 return True
                             derivation_path.pop()
-                        return False
-                if ''.join(symbols) == input_string:
-                    steps.append(' '.join(symbols))
+                        return False  # If a variable is found, try all its productions before backtracking
+                if "".join(symbols) == input_string:
+                    steps.append(" ".join(symbols))
                     return True
                 return False
 
@@ -220,11 +227,13 @@ class CFG:
                             if derive(new_symbols, remaining_input, derivation_path):
                                 return True
                             derivation_path.pop()
-                        return False
-                if ''.join(symbols) == input_string:
-                    steps.append(' '.join(symbols))
+                        return False # If a variable is found, try all its productions before backtracking
+                if "".join(symbols) == input_string:
+                    steps.append(" ".join(symbols))
                     return True
                 return False
+
+            return False
 
         initial = [self.start_symbol]
         steps.append(' '.join(initial))
