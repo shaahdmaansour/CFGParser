@@ -1,0 +1,28 @@
+VARIABLES
+S
+E
+T
+F
+I
+C
+TERMINALS
+a
++
+*
+=
+i
+(
+)
+>
+;
+{
+}
+w
+PRODUCTIONS
+S -> i = E ; | w ( C ) { S } | S S
+E -> E + T | T
+T -> T * F | F
+F -> ( E ) | i
+C -> E > E
+START
+S

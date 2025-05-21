@@ -1,0 +1,11 @@
+VARIABLES
+S
+A
+B
+TERMINALS
+a
+b
+PRODUCTIONS
+S -> a S a | b S b | a | b | epsilon
+START
+S
